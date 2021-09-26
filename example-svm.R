@@ -1,4 +1,4 @@
-# Example of tidymodels flow for supervised ML
+# Example of tidymodels flows for supervised ML
 # 26-09-2021
 
 # Packages ----
