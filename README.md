@@ -1,2 +1,2 @@
-# intro-tidymodels
-Repo for study group - Intro to tidymodels
+# Intro to tidymodels
+Repo for study group material - Intro to tidymodels
