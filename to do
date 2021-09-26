@@ -1,1 +1,4 @@
-To 
+To do:
+1) Try save tune model in rds format - autplot does not work with rda file
+2) Read about explanable model in tidymodels book
+3) Finish diagram for tidymodels flow for the slide
