@@ -135,7 +135,7 @@ lasso_train <- # this should be save for model deployment (readr::write_rds())
 
 ### Fit on processed testing data
 dat_pred <- 
-  dat_test_processed %>% 
+  dat_test %>% 
   bind_cols(predict(lasso_train, new_data = dat_test)) %>% 
   bind_cols(predict(lasso_train, new_data = dat_test, type = "prob"))
 
@@ -162,10 +162,10 @@ dat_pred %>%
 dat_pred %>% 
   roc_auc(income2, .pred_lowest:.pred_highest)
 
+## For 2nd method
 dat_fit %>% 
   collect_metrics()
 
-## For 2nd method
 dat_fit %>% 
   collect_predictions() %>% 
   roc_curve(income2, .pred_lowest:.pred_highest) %>% 
