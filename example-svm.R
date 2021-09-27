@@ -81,22 +81,21 @@ svm_wf <-
   add_model(svm_model)
 
 # Tuning parameters ----
-# library(doParallel) # Do not run ! (~1 hour run time with 2 cores)
-# cl <- makePSOCKcluster(detectCores() - 1)
-# registerDoParallel(cl)
-# set.seed(2021)
-# 
-# ctrl <- control_resamples(save_pred = TRUE, verbose = T)
-# svm_tune <-  
-#   svm_wf %>% 
-#   tune_grid(resamples = dat_cv,
-#             metrics = metric_set(accuracy, pr_auc, roc_auc),
-#             control = ctrl,
-#             grid = 10)
-# 
-# stopCluster(cl)
+library(doParallel) # Do not run ! (~40 run time with 3 cores)
+cl <- makePSOCKcluster(detectCores() - 1)
+registerDoParallel(cl)
+set.seed(2021)
 
-# HERE!!! TRY save as rds <------ HERE !!! ----
+ctrl <- control_resamples(save_pred = TRUE, verbose = T)
+svm_tune <-
+  svm_wf %>%
+  tune_grid(resamples = dat_cv,
+            metrics = metric_set(accuracy, pr_auc, roc_auc),
+            control = ctrl,
+            grid = 10)
+
+stopCluster(cl)
+
 load("svm_tune.rda")
 
 ## Explore result of tuning
@@ -106,7 +105,7 @@ svm_tune %>%
 svm_tune %>% 
   show_best("accuracy")
 
-svm_tune %>% autoplot()
+svm_tune %>% autoplot() + theme_light()
 
 svm_tune %>% 
   collect_predictions() %>% 
@@ -117,10 +116,6 @@ svm_tune %>%
   group_by(id) %>% 
   roc_curve(truth = income2, estimate = .pred_lowest:.pred_highest) %>% 
   autoplot()
-
-svm_tune %>% 
-  collect_metrics() %>% 
-  autoplot() # not working with rda
 
 # Finalize workflow ----
 svm_best <- svm_tune %>% select_best("roc_auc")
