@@ -1,4 +1,4 @@
-# Example of tidymodels flows for supervised ML
+# Example of tidymodels with workflows for supervised ML
 # 26-09-2021
 
 # Packages ----
@@ -47,7 +47,8 @@ dat_rec <-
   step_impute_knn(all_predictors(), -c(sex, age, dual_incomes, under18)) %>% 
   step_nzv(all_predictors()) %>% 
   step_zv(all_predictors()) %>% 
-  step_upsample(income2, seed = 2021)
+  step_dummy(all_nominal_predictors()) %>% 
+  step_upsample(income2)  # has built in set seed 
 
 dat_processed <- 
   dat_rec %>% 
@@ -60,99 +61,92 @@ DataExplorer::profile_missing(dat_processed)
 
 # Resample ----
 set.seed(2021)
-dat_cv <- vfold_cv(dat_processed, v = 10, repeats = 1, strata = income2)
-dat_boot <- bootstraps(dat_processed, strata = income2)
+dat_cv <- vfold_cv(dat_train, v = 10, repeats = 1, strata = income2)
+dat_boot <- bootstraps(dat_train, strata = income2)
 
 # Specify model ----
-svm_model <- 
-  svm_poly(cost = tune(),
-           degree = tune(), 
-           scale_factor = tune()) %>% 
-  set_engine("kernlab") %>% 
+lasso_model <- 
+  multinom_reg(penalty = tune(), 
+               mixture = 1) %>% 
+  set_engine("glmnet") %>% 
   set_mode("classification")
 
-show_engines("rand_forest")
-show_model_info("rand_forest")
+show_engines("multinom_reg")
+show_model_info("multinom_reg")
 
 # Specify workflow
-svm_wf <- 
+lasso_wf <- 
   workflow() %>% 
   add_recipe(dat_rec) %>% 
-  add_model(svm_model)
+  add_model(lasso_model)
 
 # Tuning parameters ----
-library(doParallel) # Do not run ! (~40 run time with 3 cores)
-cl <- makePSOCKcluster(detectCores() - 1)
-registerDoParallel(cl)
+# library(doParallel) 
+# cl <- makePSOCKcluster(detectCores() - 1)
+# registerDoParallel(cl)
 set.seed(2021)
 
 ctrl <- control_resamples(save_pred = TRUE, verbose = T)
-svm_tune <-
-  svm_wf %>%
-  tune_grid(resamples = dat_cv,
+lasso_tune <-
+  lasso_wf %>%
+  tune_grid(resamples = dat_cv, # fit_resample() if no tuning
             metrics = metric_set(accuracy, pr_auc, roc_auc),
             control = ctrl,
-            grid = 10)
+            grid = 100)
 
-stopCluster(cl)
-
-load("svm_tune.rda")
+# stopCluster(cl)
 
 ## Explore result of tuning
-svm_tune %>% 
+lasso_tune %>% 
   collect_metrics()
 
-svm_tune %>% 
-  show_best("accuracy")
+lasso_tune %>% 
+  show_best("roc_auc")
 
-svm_tune %>% autoplot() + theme_light()
+lasso_tune %>% autoplot() + theme_bw()
 
-svm_tune %>% 
+lasso_tune %>% 
   collect_predictions() %>% 
   conf_mat(income2, .pred_class)
 
-svm_tune %>% 
+lasso_tune  %>% 
+  conf_mat_resampled(parameters = lasso_tune %>% select_best("roc_auc"), tidy = F) # average cell count in resample
+
+lasso_tune %>% 
   collect_predictions() %>% 
   group_by(id) %>% 
   roc_curve(truth = income2, estimate = .pred_lowest:.pred_highest) %>% 
   autoplot()
 
 # Finalize workflow ----
-svm_best <- svm_tune %>% select_best("roc_auc")
+lasso_best <- lasso_tune %>% select_best("roc_auc")
 
-svm_wf_final <- 
-  svm_wf %>% 
-  finalize_workflow(svm_best)
+lasso_wf_final <- 
+  lasso_wf %>% 
+  finalize_workflow(lasso_best)
 
 # Fit and predict on testing data ----
 
 ## 1) 1st Method ----
 ### Fit on entire training data 
-svm_train <- # this should be save for model deployment (readr::write_rds())
-  svm_wf_final %>% 
-  fit(data = dat_processed)
+lasso_train <- # this should be save for model deployment (readr::write_rds())
+  lasso_wf_final %>% 
+  fit(data = dat_train)
 
 ### Fit on processed testing data
-dat_test_processed <- 
-  dat_rec %>% 
-  prep() %>% 
-  bake(new_data = dat_test)
-
 dat_pred <- 
   dat_test_processed %>% 
-  bind_cols(predict(svm_train, new_data = dat_test_processed)) %>% 
-  bind_cols(predict(svm_train, new_data = dat_test_processed, type = "prob"))
+  bind_cols(predict(lasso_train, new_data = dat_test)) %>% 
+  bind_cols(predict(lasso_train, new_data = dat_test, type = "prob"))
 
-# w/o workflow for model deployment
-predict(svm_train, 
-        new_data = dat_rec %>% 
-          prep() %>% 
-          bake(new_data = dat_train[3:4, ])) # lower_middle lower_middle
+# for model deployment
+predict(lasso_train, 
+        new_data = dat_train[3:4, ]) # lower_middle lower_middle
 
-## 2) 2nd method - workflow ----
+## 2) 2nd method - easier ----
 #### Fit on entire training data then testing data
 dat_fit <- 
-  svm_wf_final %>% 
+  lasso_wf_final %>% 
   last_fit(dat_index)
 
 # workflow below should be saved for model deployment (readr::write_rds())
@@ -161,7 +155,7 @@ predict(wf_saved, dat_train[3:4, ]) # lower_middle lower_middle
 
 # Performance metrics ----
 
-## W/o workflow
+## For 1st method
 dat_pred %>% 
   accuracy(income2, .pred_class)
 
@@ -171,7 +165,7 @@ dat_pred %>%
 dat_fit %>% 
   collect_metrics()
 
-## With workflow
+## For 2nd method
 dat_fit %>% 
   collect_predictions() %>% 
   roc_curve(income2, .pred_lowest:.pred_highest) %>% 
@@ -189,17 +183,32 @@ dat_fit %>%
 library(DALEX)
 library(DALEXtra)
 
-explainer_svm <- # ~1 min run time
+explainer_lasso <- 
   explain_tidymodels(
     wf_saved, 
-    data = dat_processed %>% select(-income2), 
+    data = dat_train %>% select(-income2), 
     y = as.numeric(dat_processed$income2),
-    label = "svm_poly",
+    label = "lasso_regression",
     verbose = T
   )
 
 ## Global explanation - variable importance
-vip_svm <- model_parts(explainer_svm) # ~6 min run time
+vip_lasso <- model_parts(explainer_lasso) 
 
 source("var_imp.R")
-ggplot_imp(vip_svm)
+ggplot_imp(vip_lasso)
+
+## vip package (not suitable to all models)
+library(vip)
+
+dat_fit %>%
+  extract_fit_parsnip() %>%
+  vi(lambda = lasso_best$penalty) %>%
+  mutate(
+    Importance = abs(Importance),
+    Variable = fct_reorder(Variable, Importance)
+  ) %>%
+  ggplot(aes(x = Importance, y = Variable, fill = Sign)) +
+  geom_col() +
+  scale_x_continuous(expand = c(0, 0)) +
+  labs(y = NULL)
