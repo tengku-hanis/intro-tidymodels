@@ -216,3 +216,7 @@ dat_fit %>%
 dat_fit %>% 
   extract_fit_parsnip() %>% 
   vip::vip()
+
+# Explainer:
+# 1) Global - permutation approach; partial dependence plot
+# 2) Local (for single observation) - Shapley additive explanation (SHAP)
