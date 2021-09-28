@@ -203,7 +203,7 @@ library(vip)
 
 dat_fit %>%
   extract_fit_parsnip() %>%
-  vi(lambda = lasso_best$penalty) %>%
+  vi_model(lambda = lasso_best$penalty) %>%
   mutate(
     Importance = abs(Importance),
     Variable = fct_reorder(Variable, Importance)
@@ -213,10 +213,15 @@ dat_fit %>%
   scale_x_continuous(expand = c(0, 0)) +
   labs(y = NULL)
 
+  # Or another approach
+
 dat_fit %>% 
   extract_fit_parsnip() %>% 
-  vip::vip()
+  vi_model(lambda = lasso_best$penalty) %>% 
+  vip(num_features = 70)
+
 
 # Explainer:
 # 1) Global - permutation approach; partial dependence plot
 # 2) Local (for single observation) - Shapley additive explanation (SHAP)
+# Related packages: DALEX, DALEXtra, vip, lime
