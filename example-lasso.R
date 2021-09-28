@@ -212,3 +212,7 @@ dat_fit %>%
   geom_col() +
   scale_x_continuous(expand = c(0, 0)) +
   labs(y = NULL)
+
+dat_fit %>% 
+  extract_fit_parsnip() %>% 
+  vip::vip()
