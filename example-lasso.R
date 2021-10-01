@@ -201,7 +201,7 @@ dat_fit %>%
   filter(term != "(Intercept)") %>% 
   ggplot(aes(estimate, term, fill = class, color = class)) +
   geom_col(alpha = 0.7) +
-  labs(x = "Lasso coefficients", y = "") +
+  labs(x = "Coefficients (log odds scale)", y = "") +
   theme_minimal() 
   # facet_wrap(vars(class))
 
