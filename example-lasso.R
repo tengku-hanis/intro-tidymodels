@@ -119,7 +119,8 @@ lasso_tune %>%
   autoplot()
 
 # Finalize workflow ----
-lasso_best <- lasso_tune %>% select_best("roc_auc")
+
+lasso_best <- lasso_tune %>% select_best("roc_auc") # select_by_one_std_err() 
 
 lasso_wf_final <- 
   lasso_wf %>% 
