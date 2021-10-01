@@ -152,7 +152,10 @@ dat_fit <-
 
 # workflow below should be saved for model deployment (readr::write_rds())
 wf_saved <- dat_fit$.workflow[[1]] 
+wf_saved <- extract_workflow(dat_fit)
+
 predict(wf_saved, dat_train[3:4, ]) # lower_middle lower_middle
+predict(wf_saved, dat_train[3:4, ], type = "prob")
 
 # Performance metrics ----
 
@@ -169,6 +172,16 @@ dat_fit %>%
 
 dat_fit %>% 
   collect_predictions() %>% 
+  conf_mat(income2, .pred_class)
+
+dat_fit %>% 
+  collect_predictions() %>% 
+  conf_mat(income2, .pred_class) %>% 
+  autoplot("heatmap") + # or "mosaic"
+  scale_fill_gradient(low="white", high="purple")
+
+dat_fit %>% 
+  collect_predictions() %>% 
   roc_curve(income2, .pred_lowest:.pred_highest) %>% 
   autoplot()
 
@@ -179,6 +192,18 @@ dat_fit %>%
   geom_line() +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
   theme_bw()
+
+# specific for regression stat model
+dat_fit %>% 
+  extract_fit_parsnip() %>% 
+  tidy() %>% 
+  group_by(term) %>% 
+  filter(term != "(Intercept)") %>% 
+  ggplot(aes(estimate, term, fill = class, color = class)) +
+  geom_col(alpha = 0.7) +
+  labs(x = "Lasso coefficients", y = "") +
+  theme_minimal() 
+  # facet_wrap(vars(class))
 
 # Model explainer ----
 library(DALEX)
